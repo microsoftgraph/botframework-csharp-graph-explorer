@@ -135,6 +135,8 @@ namespace MicrosoftGraphBot.Dialog
                     case OperationType.Photo:
                     case OperationType.Plans:
                     case OperationType.Tasks:
+                        await opContext.Forward(new ResourceTypes.TasksDialog(), OperationComplete, true, CancellationToken.None);
+                        break;
                     case OperationType.TrendingAround:
                     case OperationType.WorkingWith:
                         await opContext.PostAsync("Operation not yet implemented");

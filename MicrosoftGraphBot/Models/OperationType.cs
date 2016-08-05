@@ -37,6 +37,8 @@ namespace MicrosoftGraphBot.Models
         Delete,
         Download,
         Upload,
-        Folder
+        Folder,
+        InProgress,
+        Complete
     }
 }

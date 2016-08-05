@@ -19,6 +19,8 @@ namespace MicrosoftGraphBot.Models
         NavNext,
         NavPrevious,
         NavUp,
-        Cancel
+        Cancel,
+        Plan,
+        Task,
     }
 }

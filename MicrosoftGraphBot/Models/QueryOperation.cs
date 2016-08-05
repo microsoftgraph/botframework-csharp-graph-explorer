@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 
 namespace MicrosoftGraphBot.Models
 {
@@ -17,6 +18,19 @@ namespace MicrosoftGraphBot.Models
         public override string ToString()
         {
             return Text;
+        }
+
+        public T GetContextObjectAs<T>() where T : class
+        {
+            if (ContextObject is T)
+            {
+                return (T)ContextObject;
+            }
+            if (ContextObject is JObject)
+            {
+                return ((JObject)ContextObject).ToObject<T>();
+            }
+            return null;
         }
 
         public static List<QueryOperation> GetEntityResourceTypes(EntityType entityType)

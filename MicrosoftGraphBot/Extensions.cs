@@ -13,6 +13,7 @@ using System.Reflection;
 using System.Resources;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace MicrosoftGraphBot
 {
@@ -73,7 +74,7 @@ namespace MicrosoftGraphBot
         /// </summary>
         /// <param name="context">IDialogContext</param>
         /// <param name="result">LuisResult</param>
-        public async static Task Initialize(this IDialogContext context)
+        public static async Task Initialize(this IDialogContext context)
         {
             //reset the conversation data for new thead
             context.ConversationData.RemoveValue("DialogEntity");
@@ -136,7 +137,7 @@ namespace MicrosoftGraphBot
         {
             return context.ConversationData.Get<string>("NavCurrent");
         }
-        
+
         public static void NavPushLevel(this IDialogContext context)
         {
             //implemented as a list and not a real stack because serialization was corrupting order
@@ -197,7 +198,7 @@ namespace MicrosoftGraphBot
             if (json["@odata.nextLink"] != null)
             {
                 var next = json.Value<string>("@odata.nextLink");
-                operations.Add(new QueryOperation() { Text = "(Next page)", Type = OperationType.Next, Endpoint = next });
+                operations.Add(new QueryOperation() {Text = "(Next page)", Type = OperationType.Next, Endpoint = next});
             }
 
             //add previous to the front
@@ -205,13 +206,24 @@ namespace MicrosoftGraphBot
             {
                 var prev = context.NavPeekItem();
 
-                operations.Add(new QueryOperation() { Text = "(Prev page)", Type = OperationType.Previous, Endpoint = prev });
+                operations.Add(new QueryOperation()
+                {
+                    Text = "(Prev page)",
+                    Type = OperationType.Previous,
+                    Endpoint = prev
+                });
             }
 
             //add parent nav up
             if (!String.IsNullOrEmpty(context.NavPeekLevel()))
-                operations.Add(new QueryOperation() { Text = "(Up to parent)", Type = OperationType.Up, Endpoint = context.NavPeekLevel() });
+                operations.Add(new QueryOperation()
+                {
+                    Text = "(Up to parent)",
+                    Type = OperationType.Up,
+                    Endpoint = context.NavPeekLevel()
+                });
         }
+
         //START - THESE ARE ALL PAGING UTILITIES
 
 
@@ -415,6 +427,44 @@ namespace MicrosoftGraphBot
             }
 
             return g;
+        }
+
+        /// <summary>
+        /// Parses JArray to generic List of Task objects
+        /// </summary>
+        /// <param name="array">JArray</param>
+        /// <returns>List of Group objects</returns>
+        public static List<PlanTask> ToTasksList(this JArray array)
+        {
+            return array.Select(item => item.ToTask()).ToList();
+        }
+
+        /// <summary>
+        /// Parses JToken to Task object
+        /// </summary>
+        /// <param name="token">JToken</param>
+        /// <returns>User object</returns>
+        public static PlanTask ToTask(this JToken token)
+        {
+            return token.ToObject<PlanTask>();
+        }
+
+        /// <summary>
+        /// Implements the PATCH HTTP Method on the HttpClient.
+        /// </summary>
+        /// <param name="client">HttpClient</param>
+        /// <param name="requestUri">Uri</param>
+        /// <param name="value">T</param>
+        /// <returns>HttpResponseMessage</returns>
+        public static Task<HttpResponseMessage> PatchAsJsonAsync<T>(this HttpClient client,
+            string requestUri, T value) where T : class
+        {
+            var request = new HttpRequestMessage(new HttpMethod("PATCH"), requestUri)
+            {
+                Content = new StringContent(JsonConvert.SerializeObject(value),
+                    Encoding.UTF8, "application/json")
+            };
+            return client.SendAsync(request);
         }
     }
 }
