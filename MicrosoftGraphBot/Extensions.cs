@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Reflection;
 using System.Resources;
 using System.Text;
@@ -251,20 +252,80 @@ namespace MicrosoftGraphBot
         }
 
         /// <summary>
-        /// Performs a simple HTTP DELETE against the MSGraph given a token and endpoint
+        /// Performs a HTTP DELETE against the MSGraph given an access token and request URI
         /// </summary>
-        /// <param name="client">HttpClient</param>
-        /// <param name="token">Access token string</param>
-        /// <param name="endpoint">endpoint uri to perform DELETE on</param>
+        /// <param name="httpClient">HttpClient</param>
+        /// <param name="accessToken">Access token string</param>
+        /// <param name="requestUri">Request URI to perform DELETE on</param>
+        /// <param name="weakETag">Entity Tag header for Microsoft Graph item to perform DELETE on</param>
         /// <returns>boolean for success</returns>
-        public static async Task<bool> MSGraphDELETE(this HttpClient client, string token, string endpoint)
+        public static async Task<bool> MSGraphDELETE(this HttpClient httpClient, string accessToken,
+            string requestUri, string weakETag = null)
         {
-            client.DefaultRequestHeaders.Add("Authorization", "Bearer " + token);
-            client.DefaultRequestHeaders.Add("Accept", "application/json");
-            using (var response = await client.DeleteAsync(endpoint))
+            // Set Authorization and Accept header.
+            httpClient.DefaultRequestHeaders.Add("Authorization", "Bearer " + accessToken);
+            httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+
+            // Set (weak) If-Match header.
+            if (weakETag != null)
+            {
+                var headers = httpClient.DefaultRequestHeaders;
+                headers.IfMatch.Add(new EntityTagHeaderValue(weakETag.Substring(2,
+                    weakETag.Length - 2), true));
+            }
+
+            using (var response = await httpClient.DeleteAsync(requestUri))
             {
                 return response.IsSuccessStatusCode;
             }
+        }
+
+        /// <summary>
+        /// Performs a HTTP PATCH against the MSGraph given an access token and request URI
+        /// </summary>
+        /// <param name="httpClient">HttpClient</param>
+        /// <param name="accessToken">Access token string</param>
+        /// <param name="requestUri">Request uri to perform PATCH on</param>
+        /// <param name="data">Request body data for the request</param>
+        /// <param name="weakETag">Entity Tag header for Microsoft Graph item to perform PATCH on</param>
+        /// <returns>boolean for success</returns>
+        public static async Task<bool> MSGraphPATCH<T>(this HttpClient httpClient, string accessToken, 
+            string requestUri, T data, string weakETag = null) where T : class
+        {
+            // Set Authorization and Accept header.
+            httpClient.DefaultRequestHeaders.Add("Authorization", "Bearer " + accessToken);
+            httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+
+            // Set (weak) If-Match header.
+            if (weakETag != null)
+            {
+                var headers = httpClient.DefaultRequestHeaders;
+                headers.IfMatch.Add(new EntityTagHeaderValue(weakETag.Substring(2,
+                    weakETag.Length - 2), true));
+            }
+
+            using (var response = await httpClient.PatchAsJsonAsync(requestUri, data))
+            {
+                return response.IsSuccessStatusCode;
+            }
+        }
+
+        /// <summary>
+        /// Implements the PATCH HTTP Method on the HttpClient.
+        /// </summary>
+        /// <param name="client">HttpClient</param>
+        /// <param name="requestUri">Uri</param>
+        /// <param name="value">T</param>
+        /// <returns>HttpResponseMessage</returns>
+        public static Task<HttpResponseMessage> PatchAsJsonAsync<T>(this HttpClient client,
+            string requestUri, T value) where T : class
+        {
+            var request = new HttpRequestMessage(new HttpMethod("PATCH"), requestUri)
+            {
+                Content = new StringContent(JsonConvert.SerializeObject(value),
+                    Encoding.UTF8, "application/json")
+            };
+            return client.SendAsync(request);
         }
 
 
@@ -447,24 +508,6 @@ namespace MicrosoftGraphBot
         public static PlanTask ToTask(this JToken token)
         {
             return token.ToObject<PlanTask>();
-        }
-
-        /// <summary>
-        /// Implements the PATCH HTTP Method on the HttpClient.
-        /// </summary>
-        /// <param name="client">HttpClient</param>
-        /// <param name="requestUri">Uri</param>
-        /// <param name="value">T</param>
-        /// <returns>HttpResponseMessage</returns>
-        public static Task<HttpResponseMessage> PatchAsJsonAsync<T>(this HttpClient client,
-            string requestUri, T value) where T : class
-        {
-            var request = new HttpRequestMessage(new HttpMethod("PATCH"), requestUri)
-            {
-                Content = new StringContent(JsonConvert.SerializeObject(value),
-                    Encoding.UTF8, "application/json")
-            };
-            return client.SendAsync(request);
         }
     }
 }

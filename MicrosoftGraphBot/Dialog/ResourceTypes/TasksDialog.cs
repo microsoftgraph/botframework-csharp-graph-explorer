@@ -270,23 +270,14 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                 var httpClient = new HttpClient();
                 var accessToken = await context.GetAccessToken();
 
-                // Set Authorization header.
-                httpClient.DefaultRequestHeaders.Authorization = new 
-                    AuthenticationHeaderValue("Bearer", accessToken);
-
-                // Set ETag header.
-                var headers = httpClient.DefaultRequestHeaders;
-                headers.IfMatch.Add(new EntityTagHeaderValue(task.ETag.Substring(2,
-                    task.ETag.Length - 2), true));
-
                 // Update the task.
                 await context.PostAsync("Updating task...");
-                var response = await httpClient.PatchAsJsonAsync(
-                    $"https://graph.microsoft.com/beta/{operation.Endpoint}", new 
-                {
-                    PercentComplete = percentComplete
-                });
-                await context.PostAsync(response.IsSuccessStatusCode ? "Task updated!" : "Update failed!");
+                var response = await httpClient.MSGraphPATCH(accessToken,
+                    $"https://graph.microsoft.com/beta/{operation.Endpoint}", new
+                    {
+                        PercentComplete = percentComplete
+                    }, task.ETag);
+                await context.PostAsync(response ? "Task updated!" : "Update failed!");
 
                 // Navigating up to parent, pop the level and then pop the
                 // last query on the parent.
@@ -315,15 +306,10 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                 var httpClient = new HttpClient();
                 var accessToken = await context.GetAccessToken();
 
-                // Set ETag header.
-                var headers = httpClient.DefaultRequestHeaders;
-                headers.IfMatch.Add(new EntityTagHeaderValue(task.ETag.Substring(2,
-                    task.ETag.Length - 2), true));
-
                 // Delete the task.
                 await context.PostAsync("Deleting task...");
                 var response = await httpClient.MSGraphDELETE(accessToken,
-                    $"https://graph.microsoft.com/beta/{operation.Endpoint}");
+                    $"https://graph.microsoft.com/beta/{operation.Endpoint}", task.ETag);
                 await context.PostAsync(response ? "Task deleted!" : "Delete failed!");
 
                 // Navigating up to parent, pop the level and then pop the
