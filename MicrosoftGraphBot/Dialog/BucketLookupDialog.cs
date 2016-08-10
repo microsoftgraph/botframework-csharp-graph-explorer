@@ -1,27 +1,36 @@
 ﻿using System;
+using System.Collections.Generic;
 using Microsoft.Bot.Builder.Dialogs;
 using MicrosoftGraphBot.Models;
+using Newtonsoft.Json.Linq;
 
 namespace MicrosoftGraphBot.Dialog
 {
     [Serializable]
     public class BucketLookupDialog : EntityLookupDialog<Bucket>
     {
-        public BucketLookupDialog()
-            : base("What bucket are you interested in (lookup by the bucket name)?",
-                "No choices found... do you want to try again?",
-                "Multiple choices found... which bucket would you like to pick?",
-                GetRequestUri,
-                Extensions.ToBucketList,
-                (p, q) => p.Name.ToLower().Contains(q))
+        public override string LookupPrompt => "Which bucket are you interested in (lookup by the bucket name)?";
+
+        public override string NoLookupPrompt => "Which bucket are you interested in?";
+
+        public override string NoChoicesPrompt => "No choices found... do you want to try again?";
+
+        public override string MultipleChoicesPrompt => "Multiple choices found... which bucket would you like to choose?";
+
+        public override string GetRequestUri(IDialogContext dialogContext)
         {
+            var plan = dialogContext.ConversationData.Get<Plan>("Plan");
+            return $"https://graph.microsoft.com/beta/plans/{plan.id}/buckets";
         }
 
-        private static string GetRequestUri(IDialogContext dialogContext)
+        public override List<Bucket> DeserializeArray(JArray array)
         {
-            var dialogEntity = dialogContext.ConversationData.GetDialogEntity();
-            var id = dialogEntity.id;
-            return $"https://graph.microsoft.com/beta/plans/{id}/buckets";
+            return array.ToBucketList();
+        }
+
+        public override bool FilterEntity(Bucket entity, string query)
+        {
+            return entity.Name.ToLower().Contains(query);
         }
     }
 }

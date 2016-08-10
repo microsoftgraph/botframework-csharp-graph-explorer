@@ -123,8 +123,8 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                         await ProcessTaskAsync(choiceContext, operation);
                         break;
                     case OperationType.Create:
-                        await choiceContext.Forward(new PlanLookupDialog(), OnPlanLookupDialogResume,
-                            new Plan(), CancellationToken.None);
+                        await choiceContext.Forward(new PlanLookupDialog(), 
+                            OnPlanLookupDialogResume, new Plan(), CancellationToken.None);
                         break;
                     case OperationType.ShowOperations:
                         choiceContext.Done(false); //return to parent WITHOUT start over
@@ -142,10 +142,9 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
         {
             // Save the plan.
             var plan = await result;
-            context.ConversationData.SaveDialogEntity(new BaseEntity(plan));
+            context.ConversationData.SetValue("Plan", plan);
 
-            // Initialize a new operation and get a bucket.
-            context.NewOperation();
+            // Get a bucket.
             await context.Forward(new BucketLookupDialog(), OnBucketLookupDialogResume, new Bucket(), CancellationToken.None);
         }
 
@@ -154,15 +153,9 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
         {
             // Save the bucket.
             var bucket = await result;
-            context.ConversationData.SaveDialogEntity(new BaseEntity(bucket));
+            context.ConversationData.SetValue("Bucket", bucket);
 
-            // Initialize a new operation.
-            context.NewOperation();
-
-            ////check the entity type to determine the valid operations
-            //var entity = context.ConversationData.GetDialogEntity();
-            //List<QueryOperation> operations = QueryOperation.GetEntityResourceTypes(entity.entityType);
-
+            // Get the task.
             PromptDialog.Text(context, OnCreateTaskDialogResume,
                 "What is the task that you would like to create?");
         }
@@ -170,8 +163,29 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
         private async static Task OnCreateTaskDialogResume(IDialogContext context,
             IAwaitable<string> result)
         {
-            // Get the text result.
+            // Get data needed to create a new task.
             var text = await result;
+            var user = context.ConversationData.Get<User>("Me");
+            var plan = context.ConversationData.Get<Plan>("Plan");
+            var bucket = context.ConversationData.Get<Bucket>("Bucket");
+            
+            // Create the task data.
+            var task = new PlanTask
+            {
+                AssignedTo = user.id,
+                PlanId = plan.Id,
+                BucketId = bucket.Id,
+                Title = text
+            };
+
+            var httpClient = new HttpClient();
+            var accessToken = await context.GetAccessToken();
+
+            // Create the task.
+            await context.PostAsync("Creating task...");
+            var response = await httpClient.MSGraphPOST(accessToken, 
+                "https://graph.microsoft.com/beta/tasks", task);
+            await context.PostAsync(response ? "Task created!" : "Creation failed!");
             await ProcessAsync(context);
         }
 

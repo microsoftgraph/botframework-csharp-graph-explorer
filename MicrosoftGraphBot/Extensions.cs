@@ -281,6 +281,39 @@ namespace MicrosoftGraphBot
         }
 
         /// <summary>
+        /// Performs a HTTP POST against the MSGraph given an access token and request URI
+        /// </summary>
+        /// <param name="httpClient">HttpClient</param>
+        /// <param name="accessToken">Access token string</param>
+        /// <param name="requestUri">Request uri to perform POST on</param>
+        /// <param name="data">Request body data for the request</param>
+        /// <param name="weakETag">Entity Tag header for Microsoft Graph item to perform POST on</param>
+        /// <returns>boolean for success</returns>
+        public static async Task<bool> MSGraphPOST<T>(this HttpClient httpClient, string accessToken,
+            string requestUri, T data, string weakETag = null) where T : class
+        {
+            // Set Authorization and Accept header.
+            httpClient.DefaultRequestHeaders.Add("Authorization", "Bearer " + accessToken);
+            httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+
+            // Set If-Match header.
+            if (weakETag != null)
+            {
+                var headers = httpClient.DefaultRequestHeaders;
+                headers.IfMatch.Add(new EntityTagHeaderValue(weakETag.Substring(2,
+                    weakETag.Length - 2), true));
+            }
+
+            // Create data.
+            var json = JsonConvert.SerializeObject(data);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            using (var response = await httpClient.PostAsync(requestUri, content))
+            {
+                return response.IsSuccessStatusCode;
+            }
+        }
+
+        /// <summary>
         /// Performs a HTTP PATCH against the MSGraph given an access token and request URI
         /// </summary>
         /// <param name="httpClient">HttpClient</param>
@@ -289,14 +322,14 @@ namespace MicrosoftGraphBot
         /// <param name="data">Request body data for the request</param>
         /// <param name="weakETag">Entity Tag header for Microsoft Graph item to perform PATCH on</param>
         /// <returns>boolean for success</returns>
-        public static async Task<bool> MSGraphPATCH<T>(this HttpClient httpClient, string accessToken, 
+        public static async Task<bool> MSGraphPATCH<T>(this HttpClient httpClient, string accessToken,
             string requestUri, T data, string weakETag = null) where T : class
         {
             // Set Authorization and Accept header.
             httpClient.DefaultRequestHeaders.Add("Authorization", "Bearer " + accessToken);
             httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
 
-            // Set (weak) If-Match header.
+            // Set If-Match header.
             if (weakETag != null)
             {
                 var headers = httpClient.DefaultRequestHeaders;

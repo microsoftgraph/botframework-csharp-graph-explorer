@@ -1,27 +1,36 @@
 ﻿using System;
+using System.Collections.Generic;
 using Microsoft.Bot.Builder.Dialogs;
 using MicrosoftGraphBot.Models;
+using Newtonsoft.Json.Linq;
 
 namespace MicrosoftGraphBot.Dialog
 {
     [Serializable]
     public class PlanLookupDialog : EntityLookupDialog<Plan>
     {
-        public PlanLookupDialog()
-            : base("What plan are you interested in (lookup by the plan name)?",
-                "No choices found... do you want to try again?",
-                "Multiple choices found... which plan would you like to pick?",
-                GetRequestUri,
-                Extensions.ToPlanList,
-                (p, q) => p.Title.ToLower().Contains(q))
+        public override string LookupPrompt => "Which plan are you interested in (lookup by the plan name)?";
+
+        public override string NoLookupPrompt => "Which plan are you interested in?";
+
+        public override string NoChoicesPrompt => "No choices found... do you want to try again?";
+
+        public override string MultipleChoicesPrompt => "Multiple choices found... which plan would you like to choose?";
+
+        public override string GetRequestUri(IDialogContext dialogContext)
         {
+            var user = dialogContext.ConversationData.Get<User>("Me");
+            return $"https://graph.microsoft.com/beta/users/{user.id}/plans";
         }
 
-        private static string GetRequestUri(IDialogContext dialogContext)
+        public override List<Plan> DeserializeArray(JArray array)
         {
-            var dialogEntity = dialogContext.ConversationData.GetDialogEntity();
-            var id = dialogEntity.id;
-            return $"https://graph.microsoft.com/beta/users/{id}/plans";
+            return array.ToPlanList();
+        }
+
+        public override bool FilterEntity(Plan entity, string query)
+        {
+            return entity.Title.ToLower().Contains(query);
         }
     }
 }

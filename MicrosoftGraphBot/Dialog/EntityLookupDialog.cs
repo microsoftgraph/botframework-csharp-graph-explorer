@@ -10,33 +10,24 @@ using Newtonsoft.Json.Linq;
 
 namespace MicrosoftGraphBot.Dialog
 {
+    [Serializable]
     public abstract class EntityLookupDialog<T> : IDialog<T> 
     {
         private List<T> _entities;
 
-        public string Prompt { get; }
+        public abstract string LookupPrompt { get; }
 
-        public string NoChoices { get; }
+        public abstract string NoLookupPrompt { get; }
 
-        public string MultipleChoices { get; }
+        public abstract string NoChoicesPrompt { get; }
 
-        public Func<IDialogContext, string> RequestUri { get; }
+        public abstract string MultipleChoicesPrompt { get; }
 
-        public Func<JArray, List<T>> Deserialize { get; }
+        public abstract string GetRequestUri(IDialogContext dialogContext);
 
-        public Func<T, string, bool> Filter { get; }
+        public abstract List<T> DeserializeArray(JArray array);
 
-        protected EntityLookupDialog(string prompt, string noChoices, string multipleChoices,
-            Func<IDialogContext, string> requestUri, Func<JArray, List<T>> deserialize, 
-            Func<T, string, bool> filter)
-        {
-            Prompt = prompt;
-            NoChoices = noChoices;
-            MultipleChoices = multipleChoices;
-            RequestUri = requestUri;
-            Deserialize = deserialize;
-            Filter = filter;
-        }
+        public abstract bool FilterEntity(T entity, string query);
 
 #pragma warning disable 1998
         public async Task StartAsync(IDialogContext context)
@@ -68,7 +59,7 @@ namespace MicrosoftGraphBot.Dialog
                 }
                 else
                 {
-                    PromptDialog.Text(context, OnTextDialogResume, Prompt);
+                    PromptDialog.Text(context, OnTextDialogResume, LookupPrompt);
                 }
             }
         }
@@ -77,11 +68,11 @@ namespace MicrosoftGraphBot.Dialog
         {
             // Create HTTP Client and get the response.
             var httpClient = new HttpClient();
-            var requestUri = RequestUri(context);
+            var requestUri = GetRequestUri(context);
             var json = await httpClient.MSGraphGET(accessToken, requestUri);
 
             // Deserialize the response.
-            var response = Deserialize((JArray)json["value"]);
+            var response = DeserializeArray((JArray)json["value"]);
             return response;
         }
 
@@ -89,7 +80,7 @@ namespace MicrosoftGraphBot.Dialog
         {
             // Filter the entities..
             var query = (await result).ToLower();
-            var matches = _entities.Where(e => Filter(e, query))
+            var matches = _entities.Where(e => FilterEntity(e, query))
                 .Take(5)
                 .ToList();
 
@@ -124,7 +115,7 @@ namespace MicrosoftGraphBot.Dialog
                 {
                     retryContext.Done<User>(null);
                 }
-            }, NoChoices);
+            }, NoChoicesPrompt);
         }
 
         private void ShowChoices(IDialogContext context, IEnumerable<T> choices, bool firstPrompt)
@@ -133,7 +124,7 @@ namespace MicrosoftGraphBot.Dialog
             {
                 var selection = await choiceResult;
                 choiceContext.Done(selection);
-            }, choices, firstPrompt ? Prompt : MultipleChoices);
+            }, choices, firstPrompt ? NoLookupPrompt : MultipleChoicesPrompt);
         }
     }
 }
