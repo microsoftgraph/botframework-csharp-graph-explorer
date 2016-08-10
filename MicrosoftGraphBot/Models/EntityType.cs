@@ -11,6 +11,7 @@ namespace MicrosoftGraphBot.Models
     {
         Me,
         User,
-        Group
+        Group,
+        Plan
     }
 }

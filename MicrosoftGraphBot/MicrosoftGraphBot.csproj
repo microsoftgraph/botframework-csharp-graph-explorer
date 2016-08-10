@@ -181,6 +181,9 @@
     <Compile Include="Dialog\AuthDialog.cs" />
     <Compile Include="Dialog\GraphDialog.cs" />
     <Compile Include="Dialog\GroupLookupDialog.cs" />
+    <Compile Include="Dialog\BucketLookupDialog.cs" />
+    <Compile Include="Dialog\EntityLookupDialog.cs" />
+    <Compile Include="Dialog\PlanLookupDialog.cs" />
     <Compile Include="Dialog\ResourceTypes\DirectReportsDialog.cs" />
     <Compile Include="Dialog\ResourceTypes\FilesDialog.cs" />
     <Compile Include="Dialog\ResourceTypes\ManagerDialog.cs" />
@@ -195,6 +198,8 @@
     <Compile Include="Models\BaseEntity.cs" />
     <Compile Include="Models\EntityType.cs" />
     <Compile Include="Models\File.cs" />
+    <Compile Include="Models\Bucket.cs" />
+    <Compile Include="Models\Plan.cs" />
     <Compile Include="Models\QueryOperation.cs" />
     <Compile Include="Models\ItemBase.cs" />
     <Compile Include="Models\ItemType.cs" />

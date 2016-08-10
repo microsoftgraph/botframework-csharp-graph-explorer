@@ -491,10 +491,50 @@ namespace MicrosoftGraphBot
         }
 
         /// <summary>
+        /// Parses JArray to generic List of Plan objects
+        /// </summary>
+        /// <param name="array">JArray</param>
+        /// <returns>List of Plan objects</returns>
+        public static List<Plan> ToPlanList(this JArray array)
+        {
+            return array.Select(item => item.ToPlan()).ToList();
+        }
+
+        /// <summary>
+        /// Parses JToken to Plan object
+        /// </summary>
+        /// <param name="token">JToken</param>
+        /// <returns>Plan object</returns>
+        public static Plan ToPlan(this JToken token)
+        {
+            return token.ToObject<Plan>();
+        }
+
+        /// <summary>
+        /// Parses JArray to generic List of Bucket objects
+        /// </summary>
+        /// <param name="array">JArray</param>
+        /// <returns>List of Bucket objects</returns>
+        public static List<Bucket> ToBucketList(this JArray array)
+        {
+            return array.Select(item => item.ToBucket()).ToList();
+        }
+
+        /// <summary>
+        /// Parses JToken to Bucket object
+        /// </summary>
+        /// <param name="token">JToken</param>
+        /// <returns>Bucket object</returns>
+        public static Bucket ToBucket(this JToken token)
+        {
+            return token.ToObject<Bucket>();
+        }
+
+        /// <summary>
         /// Parses JArray to generic List of Task objects
         /// </summary>
         /// <param name="array">JArray</param>
-        /// <returns>List of Group objects</returns>
+        /// <returns>List of Task objects</returns>
         public static List<PlanTask> ToTasksList(this JArray array)
         {
             return array.Select(item => item.ToTask()).ToList();
@@ -504,7 +544,7 @@ namespace MicrosoftGraphBot
         /// Parses JToken to Task object
         /// </summary>
         /// <param name="token">JToken</param>
-        /// <returns>User object</returns>
+        /// <returns>Task object</returns>
         public static PlanTask ToTask(this JToken token)
         {
             return token.ToObject<PlanTask>();

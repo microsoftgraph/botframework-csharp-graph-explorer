@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Bot.Builder.Dialogs;
 using Microsoft.Bot.Connector;
@@ -100,6 +101,7 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
             });
 
             // Add paging for up, next, previous.
+            // OData filtering for /tasks does not work currently due to a bug.
             operations.InitializePaging(context, response);
 
             // Allow user to select the operation.
@@ -120,6 +122,10 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                         // Handle the selection.
                         await ProcessTaskAsync(choiceContext, operation);
                         break;
+                    case OperationType.Create:
+                        await choiceContext.Forward(new PlanLookupDialog(), OnPlanLookupDialogResume,
+                            new Plan(), CancellationToken.None);
+                        break;
                     case OperationType.ShowOperations:
                         choiceContext.Done(false); //return to parent WITHOUT start over
                         break;
@@ -129,6 +135,44 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                 }
 
             }, operations, "What would you like to see next?");
+        }
+
+        private static async Task OnPlanLookupDialogResume(IDialogContext context, 
+            IAwaitable<Plan> result)
+        {
+            // Save the plan.
+            var plan = await result;
+            context.ConversationData.SaveDialogEntity(new BaseEntity(plan));
+
+            // Initialize a new operation and get a bucket.
+            context.NewOperation();
+            await context.Forward(new BucketLookupDialog(), OnBucketLookupDialogResume, new Bucket(), CancellationToken.None);
+        }
+
+        private async static Task OnBucketLookupDialogResume(IDialogContext context, 
+            IAwaitable<Bucket> result)
+        {
+            // Save the bucket.
+            var bucket = await result;
+            context.ConversationData.SaveDialogEntity(new BaseEntity(bucket));
+
+            // Initialize a new operation.
+            context.NewOperation();
+
+            ////check the entity type to determine the valid operations
+            //var entity = context.ConversationData.GetDialogEntity();
+            //List<QueryOperation> operations = QueryOperation.GetEntityResourceTypes(entity.entityType);
+
+            PromptDialog.Text(context, OnCreateTaskDialogResume,
+                "What is the task that you would like to create?");
+        }
+
+        private async static Task OnCreateTaskDialogResume(IDialogContext context,
+            IAwaitable<string> result)
+        {
+            // Get the text result.
+            var text = await result;
+            await ProcessAsync(context);
         }
 
         private static async Task ProcessTaskAsync(IDialogContext context, QueryOperation operation)
@@ -189,6 +233,7 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
             });
 
             // Add paging for up, next, previous.
+            // OData filtering for /tasks does not work currently due to a bug.
             operations.InitializePaging(context, new JObject());
 
             // Create prompt text.
@@ -217,11 +262,11 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                 {
                     case OperationType.InProgress:
                         PromptDialog.Confirm(choiceContext, ChangeTaskToInProgressAsync,
-                            "Are you sure that you want to set this task as in progress?");
+                            "Are you sure that you want to flag this task as in progress?");
                         break;
                     case OperationType.Complete:
                         PromptDialog.Confirm(choiceContext, ChangeTaskToCompletedAsync,
-                            "Are you sure that you want to set this task as completed?");
+                            "Are you sure that you want to flag this task as completed?");
                         break;
                     case OperationType.Delete:
                         PromptDialog.Confirm(choiceContext, DeleteTaskAsync,

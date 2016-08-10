@@ -6,18 +6,15 @@ namespace MicrosoftGraphBot.Models
     [Serializable]
     public class PlanTask : ItemBase
     {
-        private string _id;
-        private string _title;
-
         [JsonProperty("@odata.etag")]
         public string ETag { get; set; }
 
         public string Id
         {
-            get { return _id; }
+            get { return id; }
             set
             {
-                _id = value;
+                id = value;
                 navEndpoint = $"/tasks/{value}";
             }
         }
@@ -28,10 +25,9 @@ namespace MicrosoftGraphBot.Models
 
         public string Title
         {
-            get { return _title; }
+            get { return text; }
             set
             {
-                _title = value;
                 text = value;
             }
         }

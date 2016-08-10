@@ -16,11 +16,26 @@ namespace MicrosoftGraphBot.Models
             this.text = user.ToString();
             this.entityType = type;
         }
+
         public BaseEntity(Group group)
         {
             this.id = group.id;
             this.text = group.ToString();
             this.entityType = EntityType.Group;
+        }
+
+        public BaseEntity(Plan plan)
+        {
+            this.id = plan.id;
+            this.text = plan.Title.ToString();
+            this.entityType = EntityType.Plan;
+        }
+
+        public BaseEntity(Bucket bucket)
+        {
+            this.id = bucket.id;
+            this.text = bucket.Name.ToString();
+            this.entityType = EntityType.Plan;
         }
 
         public string id { get; set; }
