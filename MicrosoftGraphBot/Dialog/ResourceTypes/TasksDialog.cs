@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Bot.Builder.Dialogs;
@@ -16,7 +15,7 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
     public class TasksDialog : IDialog<bool>
     {
         /// <summary>
-        /// Called to start a dialog
+        /// Called to start a dialog.
         /// </summary>
         /// <param name="context">IDialogContext</param>
         /// <returns></returns>
@@ -24,21 +23,16 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
         public async Task StartAsync(IDialogContext context)
 #pragma warning restore 1998
         {
-            context.Wait(MessageReceivedAsync);
+            context.Wait(ShowOperationsAsync);
         }
 
         /// <summary>
-        /// Processes messages received on new thread
+        /// Processes messages received on new thread.
         /// </summary>
         /// <param name="context">IDialogContext</param>
         /// <param name="item">Awaitable IMessageActivity</param>
         /// <returns>Task</returns>
-        public async Task MessageReceivedAsync(IDialogContext context, IAwaitable<IMessageActivity> item)
-        {
-            await ProcessAsync(context);
-        }
-
-        private static async Task ProcessAsync(IDialogContext context)
+        public async Task ShowOperationsAsync(IDialogContext context, IAwaitable<IMessageActivity> item = null)
         {
             // Get needed data for the HTTP request.
             var entity = context.ConversationData.GetDialogEntity();
@@ -51,7 +45,7 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
 
             // Perform the HTTP request.
             var response = await httpClient.MSGraphGET(accessToken, requestUrl);
-            var tasks = ((JArray)response["value"]).ToTasksList();
+            var tasks = ((JArray) response["value"]).ToTasksList();
 
             // Remove completed tasks.
             tasks = new List<PlanTask>(tasks.Where(t => t.PercentComplete < 100));
@@ -117,27 +111,29 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
 
                         // The user selected a task, go to it in navigation stack.
                         choiceContext.NavPushItem(choiceContext.GetNavCurrent());
-                        choiceContext.NavPushLevel(); 
+                        choiceContext.NavPushLevel();
 
                         // Handle the selection.
-                        await ProcessTaskAsync(choiceContext, operation);
+                        await ShowTaskOperationsAsync(choiceContext, operation);
                         break;
                     case OperationType.Create:
-                        await choiceContext.Forward(new PlanLookupDialog(), 
+                        await choiceContext.Forward(new PlanLookupDialog(),
                             OnPlanLookupDialogResume, new Plan(), CancellationToken.None);
                         break;
                     case OperationType.ShowOperations:
-                        choiceContext.Done(false); //return to parent WITHOUT start over
+                        choiceContext.Done(false); 
                         break;
                     case OperationType.StartOver:
-                        choiceContext.Done(true); //return to parent WITH start over
+                        choiceContext.Done(true); 
                         break;
                 }
 
             }, operations, "What would you like to see next?");
         }
 
-        private static async Task OnPlanLookupDialogResume(IDialogContext context, 
+        #region Create Task Operation
+
+        private async Task OnPlanLookupDialogResume(IDialogContext context,
             IAwaitable<Plan> result)
         {
             // Save the plan.
@@ -145,10 +141,11 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
             context.ConversationData.SetValue("Plan", plan);
 
             // Get a bucket.
-            await context.Forward(new BucketLookupDialog(), OnBucketLookupDialogResume, new Bucket(), CancellationToken.None);
+            await context.Forward(new BucketLookupDialog(), OnBucketLookupDialogResume, new Bucket(),
+                CancellationToken.None);
         }
 
-        private async static Task OnBucketLookupDialogResume(IDialogContext context, 
+        private async Task OnBucketLookupDialogResume(IDialogContext context,
             IAwaitable<Bucket> result)
         {
             // Save the bucket.
@@ -160,7 +157,7 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                 "What is the task that you would like to create?");
         }
 
-        private async static Task OnCreateTaskDialogResume(IDialogContext context,
+        private async Task OnCreateTaskDialogResume(IDialogContext context,
             IAwaitable<string> result)
         {
             // Get data needed to create a new task.
@@ -168,7 +165,7 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
             var user = context.ConversationData.Get<User>("Me");
             var plan = context.ConversationData.Get<Plan>("Plan");
             var bucket = context.ConversationData.Get<Bucket>("Bucket");
-            
+
             // Create the task data.
             var task = new PlanTask
             {
@@ -183,16 +180,27 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
 
             // Create the task.
             await context.PostAsync("Creating task...");
-            var response = await httpClient.MSGraphPOST(accessToken, 
+            var response = await httpClient.MSGraphPOST(accessToken,
                 "https://graph.microsoft.com/beta/tasks", task);
             await context.PostAsync(response ? "Task created!" : "Creation failed!");
-            await ProcessAsync(context);
+
+            // Clear data.
+            context.ConversationData.RemoveValue("Plan");
+            context.ConversationData.RemoveValue("Bucket");
+
+            await ShowOperationsAsync(context);
         }
 
-        private static async Task ProcessTaskAsync(IDialogContext context, QueryOperation operation)
+        #endregion
+
+        #region Task Operations 
+
+#pragma warning disable 1998
+        private async Task ShowTaskOperationsAsync(IDialogContext context, QueryOperation operation)
+#pragma warning restore 1998
         {
             var entity = context.ConversationData.GetDialogEntity();
-            
+
             // Get the task.
             var task = operation.GetContextObjectAs<PlanTask>();
 
@@ -275,47 +283,51 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                 switch ((await choiceResult).Type)
                 {
                     case OperationType.InProgress:
-                        PromptDialog.Confirm(choiceContext, ChangeTaskToInProgressAsync,
+                        PromptDialog.Confirm(choiceContext, OnTaskInProgressDialogResumeAsync,
                             "Are you sure that you want to flag this task as in progress?");
                         break;
                     case OperationType.Complete:
-                        PromptDialog.Confirm(choiceContext, ChangeTaskToCompletedAsync,
+                        PromptDialog.Confirm(choiceContext, OnTaskCompleteDialogResumeAsync,
                             "Are you sure that you want to flag this task as completed?");
                         break;
                     case OperationType.Delete:
-                        PromptDialog.Confirm(choiceContext, DeleteTaskAsync,
+                        PromptDialog.Confirm(choiceContext, OnDeleteTaskDialogResume,
                             "Are you sure that you want to delete the task?");
                         break;
                     case OperationType.Up:
                         // Navigating up to parent, pop the level and then pop the
                         // last query on the parent.
-                        choiceContext.NavPopLevel(); //pop level to parent
+                        choiceContext.NavPopLevel(); 
                         choiceContext.NavPopItem();
-                        await ProcessAsync(choiceContext);
+                        await ShowOperationsAsync(choiceContext);
                         break;
                     case OperationType.ShowOperations:
-                        choiceContext.Done(false); //return to parent WITHOUT start over
+                        choiceContext.Done(false); 
                         break;
                     case OperationType.StartOver:
-                        choiceContext.Done(true); //return to parent WITH start over
+                        choiceContext.Done(true); 
                         break;
                 }
             }, operations, promptText);
         }
 
-        private async static Task ChangeTaskToInProgressAsync(IDialogContext context,
+        #endregion
+
+        #region Change Task Progress Operations
+
+        private async Task OnTaskInProgressDialogResumeAsync(IDialogContext context,
             IAwaitable<bool> result)
         {
             await UpdateTaskProgressAsync(context, result, 50);
         }
 
-        private async static Task ChangeTaskToCompletedAsync(IDialogContext context,
+        private async Task OnTaskCompleteDialogResumeAsync(IDialogContext context,
             IAwaitable<bool> result)
         {
             await UpdateTaskProgressAsync(context, result, 100);
         }
 
-        private async static Task UpdateTaskProgressAsync(IDialogContext context,
+        private async Task UpdateTaskProgressAsync(IDialogContext context,
             IAwaitable<bool> result, int percentComplete)
         {
             var confirm = await result;
@@ -340,18 +352,22 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
 
                 // Navigating up to parent, pop the level and then pop the
                 // last query on the parent.
-                context.NavPopLevel(); //pop level to parent
+                context.NavPopLevel(); 
                 context.NavPopItem();
-                await ProcessAsync(context);
+                await ShowOperationsAsync(context);
             }
             else
             {
-                //show options again
-                await ProcessTaskAsync(context, operation);
+                // Show task operations.
+                await ShowTaskOperationsAsync(context, operation);
             }
         }
 
-        private async static Task DeleteTaskAsync(IDialogContext context,
+        #endregion
+
+        #region Task Delete Operation
+
+        private async Task OnDeleteTaskDialogResume(IDialogContext context,
             IAwaitable<bool> result)
         {
             var confirm = await result;
@@ -373,15 +389,17 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
 
                 // Navigating up to parent, pop the level and then pop the
                 // last query on the parent.
-                context.NavPopLevel(); //pop level to parent
+                context.NavPopLevel(); 
                 context.NavPopItem();
-                await ProcessAsync(context);
+                await ShowOperationsAsync(context);
             }
             else
             {
-                //show options again
-                await ProcessTaskAsync(context, operation);
+                // Show task operations.
+                await ShowTaskOperationsAsync(context, operation);
             }
         }
+
+        #endregion
     }
 }

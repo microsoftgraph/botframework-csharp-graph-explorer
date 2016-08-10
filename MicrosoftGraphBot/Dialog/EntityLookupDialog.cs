@@ -59,7 +59,7 @@ namespace MicrosoftGraphBot.Dialog
                 }
                 else
                 {
-                    PromptDialog.Text(context, OnTextDialogResume, LookupPrompt);
+                    PromptDialog.Text(context, OnTextDialogResumeAsync, LookupPrompt);
                 }
             }
         }
@@ -76,7 +76,7 @@ namespace MicrosoftGraphBot.Dialog
             return response;
         }
 
-        private async Task OnTextDialogResume(IDialogContext context, IAwaitable<string> result)
+        private async Task OnTextDialogResumeAsync(IDialogContext context, IAwaitable<string> result)
         {
             // Filter the entities..
             var query = (await result).ToLower();
