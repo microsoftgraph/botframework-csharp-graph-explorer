@@ -9,7 +9,7 @@ namespace MicrosoftGraphBot.Dialog
     [Serializable]
     public class PlanLookupDialog : EntityLookupDialog<Plan>
     {
-        public override string LookupPrompt => "Which plan are you interested in (lookup by the plan name)?";
+        public override string LookupPrompt => "Which plan are you interested in (lookup by full/partial name)?";
 
         public override string NoLookupPrompt => "Which plan are you interested in?";
 

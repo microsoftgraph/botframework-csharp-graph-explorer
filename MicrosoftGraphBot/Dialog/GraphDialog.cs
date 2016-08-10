@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using MicrosoftGraphBot.Dialog.ResourceTypes;
 
 namespace MicrosoftGraphBot.Dialog
 {
@@ -134,8 +135,10 @@ namespace MicrosoftGraphBot.Dialog
                     case OperationType.People:
                     case OperationType.Photo:
                     case OperationType.Plans:
+                        await opContext.Forward(new PlanLookupDialog(), OnPlanLookupDialogResumeAsync, new Plan(), CancellationToken.None);
+                        break;
                     case OperationType.Tasks:
-                        await opContext.Forward(new ResourceTypes.TasksDialog(), OperationComplete, true, CancellationToken.None);
+                        await opContext.Forward(new TasksDialog(), OperationComplete, true, CancellationToken.None);
                         break;
                     case OperationType.TrendingAround:
                     case OperationType.WorkingWith:
@@ -145,6 +148,12 @@ namespace MicrosoftGraphBot.Dialog
                 }
 
             }, operations, prompt);
+        }
+
+        private async Task OnPlanLookupDialogResumeAsync(IDialogContext context, IAwaitable<Plan> result)
+        {
+            var plan = await result;
+
         }
 
         /// <summary>

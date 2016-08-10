@@ -14,6 +14,8 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
     [Serializable]
     public class TasksDialog : IDialog<bool>
     {
+        private const int PageSize = 5;
+
         /// <summary>
         /// Called to start a dialog.
         /// </summary>
@@ -32,8 +34,26 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
         /// <param name="context">IDialogContext</param>
         /// <param name="item">Awaitable IMessageActivity</param>
         /// <returns>Task</returns>
-        public async Task ShowOperationsAsync(IDialogContext context, IAwaitable<IMessageActivity> item = null)
+        public async Task ShowOperationsAsync(IDialogContext context,
+            IAwaitable<IMessageActivity> item = null)
         {
+            await ShowOperationsAsync(context, 0);
+        }
+
+        /// <summary>
+        /// Processes messages received on new thread.
+        /// </summary>
+        /// <param name="context">IDialogContext</param>
+        /// <param name="page">int</param>
+        /// <returns>Task</returns>
+        public async Task ShowOperationsAsync(IDialogContext context, int page)
+        {
+            // OData does currently not work well on /tasks. Implementing a
+            // custom navigation model.
+
+            // Save the current page.
+            context.ConversationData.SetValue("Page", page);
+
             // Get needed data for the HTTP request.
             var entity = context.ConversationData.GetDialogEntity();
             var requestUrl = $"https://graph.microsoft.com/beta/users/{entity.id}/tasks";
@@ -41,17 +61,20 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
             var accessToken = await context.GetAccessToken();
 
             // Save the current endpoint and retrieve the dialog entity.
-            context.SaveNavCurrent(requestUrl);
+            //context.SaveNavCurrent(requestUrl);
 
             // Perform the HTTP request.
             var response = await httpClient.MSGraphGET(accessToken, requestUrl);
-            var tasks = ((JArray) response["value"]).ToTasksList();
+            var allTasks = ((JArray)response["value"]).ToTasksList();
 
             // Remove completed tasks.
-            tasks = new List<PlanTask>(tasks.Where(t => t.PercentComplete < 100));
+            allTasks = new List<PlanTask>(allTasks.Where(t => t.PercentComplete < 100));
 
             // Not getting OData to work on /tasks, limiting in client instead.
-            tasks = new List<PlanTask>(tasks.Take(5));
+            var tasks = new List<PlanTask>(allTasks
+                .OrderBy(t => t.Id)
+                .Skip(page * PageSize)
+                .Take(PageSize));
 
             // TODO: Aggregate above filtering to single method. Current setup is for clarity.
 
@@ -72,10 +95,32 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                 };
             }));
 
+            // Create previous page operation.
+            if (page > 0)
+            {
+                operations.Add(new QueryOperation
+                {
+                    Text = "(Previous page)",
+                    Type = OperationType.Previous,
+                    Endpoint = requestUrl
+                });
+            }
+
+            // Create next page operation.
+            if ((page + 1) * PageSize < allTasks.Count)
+            {
+                operations.Add(new QueryOperation
+                {
+                    Text = "(Next page)",
+                    Type = OperationType.Next,
+                    Endpoint = requestUrl
+                });
+            }
+
             // Create new task operation.
             operations.Add(new QueryOperation
             {
-                Text = "(Create new)",
+                Text = "(Create task)",
                 Type = OperationType.Create,
                 Endpoint = requestUrl
             });
@@ -93,10 +138,6 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                 Text = "(Start over)",
                 Type = OperationType.StartOver
             });
-
-            // Add paging for up, next, previous.
-            // OData filtering for /tasks does not work currently due to a bug.
-            operations.InitializePaging(context, response);
 
             // Allow user to select the operation.
             PromptDialog.Choice(context, async (choiceContext, choiceResult) =>
@@ -120,14 +161,27 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                         await choiceContext.Forward(new PlanLookupDialog(),
                             OnPlanLookupDialogResume, new Plan(), CancellationToken.None);
                         break;
+                    case OperationType.Next:
+                    {
+                        // Move to the new page.
+                        var currentPage = choiceContext.ConversationData.Get<int>("Page");
+                        await ShowOperationsAsync(choiceContext, currentPage + 1);
+                    }
+                        break;
+                    case OperationType.Previous:
+                    {
+                        // Move to the previous page.
+                        var currentPage = choiceContext.ConversationData.Get<int>("Page");
+                        await ShowOperationsAsync(choiceContext, currentPage - 1);
+                    }
+                        break;
                     case OperationType.ShowOperations:
-                        choiceContext.Done(false); 
+                        choiceContext.Done(false);
                         break;
                     case OperationType.StartOver:
-                        choiceContext.Done(true); 
+                        choiceContext.Done(true);
                         break;
                 }
-
             }, operations, "What would you like to see next?");
         }
 
@@ -253,10 +307,6 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                 Text = "(Start over)",
                 Type = OperationType.StartOver
             });
-
-            // Add paging for up, next, previous.
-            // OData filtering for /tasks does not work currently due to a bug.
-            operations.InitializePaging(context, new JObject());
 
             // Create prompt text.
             var promptText = $"Task \"{task.Title}\" is ";

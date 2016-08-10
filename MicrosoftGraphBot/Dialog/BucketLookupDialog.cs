@@ -9,7 +9,7 @@ namespace MicrosoftGraphBot.Dialog
     [Serializable]
     public class BucketLookupDialog : EntityLookupDialog<Bucket>
     {
-        public override string LookupPrompt => "Which bucket are you interested in (lookup by the bucket name)?";
+        public override string LookupPrompt => "Which bucket are you interested in (lookup by full/partial name)?";
 
         public override string NoLookupPrompt => "Which bucket are you interested in?";
 
