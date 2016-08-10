@@ -99,6 +99,14 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                 };
             }));
 
+            // Create new task operation.
+            operations.Add(new QueryOperation
+            {
+                Text = "(Create task)",
+                Type = OperationType.Create,
+                Endpoint = requestUrl
+            });
+
             // Create previous page operation.
             if (page > 0)
             {
@@ -120,14 +128,6 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                     Endpoint = requestUrl
                 });
             }
-
-            // Create new task operation.
-            operations.Add(new QueryOperation
-            {
-                Text = "(Create task)",
-                Type = OperationType.Create,
-                Endpoint = requestUrl
-            });
 
             // Create other operations.
             var me = context.ConversationData.Me();
@@ -276,8 +276,6 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
         private async Task ShowTaskOperationsAsync(IDialogContext context, QueryOperation operation)
 #pragma warning restore 1998
         {
-            var entity = context.ConversationData.GetDialogEntity();
-
             // Get the task.
             var task = operation.GetContextObjectAs<PlanTask>();
 
@@ -315,6 +313,14 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                 Type = OperationType.Delete,
                 Endpoint = operation.Endpoint,
                 ContextObject = task
+            });
+
+            // Create up operation.
+            operations.Add(new QueryOperation
+            {
+                Text = "(Up)",
+                Type = OperationType.Up,
+                Endpoint = operation.Endpoint
             });
 
             // Create other operations.
@@ -371,6 +377,10 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                 case OperationType.Delete:
                     PromptDialog.Confirm(context, OnDeleteTaskDialogResume,
                         "Are you sure that you want to delete the task?");
+                    break;
+                    case OperationType.Up:
+                    var page = context.ConversationData.Get<int>("Page");
+                    await ShowOperationsAsync(context, page);
                     break;
                 case OperationType.ShowOperations:
                     // Reset the dialog entity.
