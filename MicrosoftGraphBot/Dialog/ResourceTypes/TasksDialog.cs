@@ -16,6 +16,11 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
     {
         private const int PageSize = 5;
 
+        public TasksDialog()
+        {
+            
+        }
+
         /// <summary>
         /// Called to start a dialog.
         /// </summary>
@@ -48,7 +53,7 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
         /// <returns>Task</returns>
         public async Task ShowOperationsAsync(IDialogContext context, int page)
         {
-            // OData does currently not work well on /tasks. Implementing a
+            // OData does currently not work well on /tasks (bug). Implementing a
             // custom navigation model.
 
             // Save the current page.
@@ -56,12 +61,11 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
 
             // Get needed data for the HTTP request.
             var entity = context.ConversationData.GetDialogEntity();
-            var requestUrl = $"https://graph.microsoft.com/beta/users/{entity.id}/tasks";
+            var requestUrl = (entity.entityType == EntityType.Me || entity.entityType == EntityType.User)
+                ? $"https://graph.microsoft.com/beta/users/{entity.id}/tasks"
+                : $"https://graph.microsoft.com/beta/plans/{entity.id}/tasks";
             var httpClient = new HttpClient();
             var accessToken = await context.GetAccessToken();
-
-            // Save the current endpoint and retrieve the dialog entity.
-            //context.SaveNavCurrent(requestUrl);
 
             // Perform the HTTP request.
             var response = await httpClient.MSGraphGET(accessToken, requestUrl);
@@ -72,7 +76,7 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
 
             // Not getting OData to work on /tasks, limiting in client instead.
             var tasks = new List<PlanTask>(allTasks
-                .OrderBy(t => t.Id)
+                .OrderBy(t => t.CreatedDateTime)
                 .Skip(page * PageSize)
                 .Take(PageSize));
 
@@ -126,9 +130,10 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
             });
 
             // Create other operations.
+            var me = context.ConversationData.Me();
             operations.Add(new QueryOperation
             {
-                Text = $"(Other {entity} queries)",
+                Text = $"(Other {me} queries)",
                 Type = OperationType.ShowOperations
             });
 
@@ -140,49 +145,70 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
             });
 
             // Allow user to select the operation.
-            PromptDialog.Choice(context, async (choiceContext, choiceResult) =>
+            PromptDialog.Choice(context, OnOperationsChoiceDialogResume, operations, 
+                "What would you like to see next?");
+        }
+
+        private async Task OnOperationsChoiceDialogResume(IDialogContext context,
+            IAwaitable<QueryOperation> result)
+        {
+            var page = context.ConversationData.Get<int>("Page");
+
+            // Get choice result.
+            var operation = await result;
+            switch (operation.Type)
             {
-                // Get choice result.
-                var operation = await choiceResult;
-                switch (operation.Type)
-                {
-                    case OperationType.Tasks:
-                        // Save the operation for recursive call.
-                        choiceContext.ConversationData.SetValue("TaskOperation", operation);
+                case OperationType.Tasks:
+                    // Save the operation for recursive call.
+                    context.ConversationData.SetValue("TaskOperation", operation);
 
-                        // The user selected a task, go to it in navigation stack.
-                        choiceContext.NavPushItem(choiceContext.GetNavCurrent());
-                        choiceContext.NavPushLevel();
+                    // The user selected a task, go to it in navigation stack.
+                    context.NavPushItem(context.GetNavCurrent());
+                    context.NavPushLevel();
 
-                        // Handle the selection.
-                        await ShowTaskOperationsAsync(choiceContext, operation);
-                        break;
-                    case OperationType.Create:
-                        await choiceContext.Forward(new PlanLookupDialog(),
-                            OnPlanLookupDialogResume, new Plan(), CancellationToken.None);
-                        break;
-                    case OperationType.Next:
+                    // Handle the selection.
+                    await ShowTaskOperationsAsync(context, operation);
+                    break;
+                case OperationType.Create:
+                    // Get the dialog entity and see if we can
+                    // skip a step (in case of plan).
+                    var dialogEntity = context.ConversationData.GetDialogEntity();
+                    if (dialogEntity.entityType == EntityType.Me || dialogEntity.entityType == EntityType.User)
                     {
-                        // Move to the new page.
-                        var currentPage = choiceContext.ConversationData.Get<int>("Page");
-                        await ShowOperationsAsync(choiceContext, currentPage + 1);
+                        await context.Forward(new PlanLookupDialog(), OnPlanLookupDialogResume, 
+                            new Plan(), CancellationToken.None);
                     }
-                        break;
-                    case OperationType.Previous:
+                    else
                     {
-                        // Move to the previous page.
-                        var currentPage = choiceContext.ConversationData.Get<int>("Page");
-                        await ShowOperationsAsync(choiceContext, currentPage - 1);
+                        // Save the plan.
+                        context.ConversationData.SetValue("Plan", dialogEntity);
+
+                        // Get a bucket.
+                        await context.Forward(new BucketLookupDialog(), OnBucketLookupDialogResume, 
+                            new Bucket(), CancellationToken.None);
                     }
-                        break;
-                    case OperationType.ShowOperations:
-                        choiceContext.Done(false);
-                        break;
-                    case OperationType.StartOver:
-                        choiceContext.Done(true);
-                        break;
-                }
-            }, operations, "What would you like to see next?");
+                    break;
+                case OperationType.Next:
+                    // Move to the new page.
+                    await ShowOperationsAsync(context, page + 1);
+                    break;
+                case OperationType.Previous:
+                    // Move to the previous page.
+                    await ShowOperationsAsync(context, page - 1);
+                    break;
+                case OperationType.ShowOperations:
+                    // Reset the dialog entity.
+                    context.ConversationData.SaveDialogEntity(new BaseEntity(
+                        context.ConversationData.Me(), EntityType.Me));
+                    context.Done(false);
+                    break;
+                case OperationType.StartOver:
+                    // Reset the dialog entity.
+                    context.ConversationData.SaveDialogEntity(new BaseEntity(
+                        context.ConversationData.Me(), EntityType.Me));
+                    context.Done(true);
+                    break;
+            }
         }
 
         #region Create Task Operation

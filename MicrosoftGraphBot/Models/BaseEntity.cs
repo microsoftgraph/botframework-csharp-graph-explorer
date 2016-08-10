@@ -20,6 +20,13 @@ namespace MicrosoftGraphBot.Models
             this.entityType = EntityType.Group;
         }
 
+        public BaseEntity(Plan plan)
+        {
+            this.id = plan.id;
+            this.text = plan.Title;
+            this.entityType = EntityType.Plan;
+        }
+
         public string id { get; set; }
         public string text { get; set; }
         public EntityType entityType { get; set; }

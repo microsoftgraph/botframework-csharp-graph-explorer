@@ -154,6 +154,8 @@ namespace MicrosoftGraphBot.Dialog
         {
             var plan = await result;
 
+            context.ConversationData.SaveDialogEntity(new BaseEntity(plan));
+            await context.Forward(new TasksDialog(), OperationComplete, true, CancellationToken.None);
         }
 
         /// <summary>
