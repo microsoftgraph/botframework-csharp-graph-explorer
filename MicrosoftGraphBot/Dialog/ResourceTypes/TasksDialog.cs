@@ -162,10 +162,6 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                     // Save the operation for recursive call.
                     context.ConversationData.SetValue("TaskOperation", operation);
 
-                    // The user selected a task, go to it in navigation stack.
-                    context.NavPushItem(context.GetNavCurrent());
-                    context.NavPushLevel();
-
                     // Handle the selection.
                     await ShowTaskOperationsAsync(context, operation);
                     break;
@@ -268,6 +264,7 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
             context.ConversationData.RemoveValue("Plan");
             context.ConversationData.RemoveValue("Bucket");
 
+            // Show operations.
             await ShowOperationsAsync(context);
         }
 
@@ -321,9 +318,10 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
             });
 
             // Create other operations.
+            var me = context.ConversationData.Me();
             operations.Add(new QueryOperation
             {
-                Text = $"(Other {entity} queries)",
+                Text = $"(Other {me} queries)",
                 Type = OperationType.ShowOperations
             });
 
@@ -353,38 +351,40 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
             promptText += ". What would you like to do next?";
 
             // Allow user to select the operation.
-            PromptDialog.Choice(context, async (choiceContext, choiceResult) =>
+            PromptDialog.Choice(context, OnTaskOperationsChoiceDialogResume, operations, promptText);
+        }
+
+        private async Task OnTaskOperationsChoiceDialogResume(IDialogContext context,
+            IAwaitable<QueryOperation> result)
+        {
+            // Get choice result.
+            switch ((await result).Type)
             {
-                // Get choice result.
-                switch ((await choiceResult).Type)
-                {
-                    case OperationType.InProgress:
-                        PromptDialog.Confirm(choiceContext, OnTaskInProgressDialogResumeAsync,
-                            "Are you sure that you want to flag this task as in progress?");
-                        break;
-                    case OperationType.Complete:
-                        PromptDialog.Confirm(choiceContext, OnTaskCompleteDialogResumeAsync,
-                            "Are you sure that you want to flag this task as completed?");
-                        break;
-                    case OperationType.Delete:
-                        PromptDialog.Confirm(choiceContext, OnDeleteTaskDialogResume,
-                            "Are you sure that you want to delete the task?");
-                        break;
-                    case OperationType.Up:
-                        // Navigating up to parent, pop the level and then pop the
-                        // last query on the parent.
-                        choiceContext.NavPopLevel(); 
-                        choiceContext.NavPopItem();
-                        await ShowOperationsAsync(choiceContext);
-                        break;
-                    case OperationType.ShowOperations:
-                        choiceContext.Done(false); 
-                        break;
-                    case OperationType.StartOver:
-                        choiceContext.Done(true); 
-                        break;
-                }
-            }, operations, promptText);
+                case OperationType.InProgress:
+                    PromptDialog.Confirm(context, OnTaskInProgressDialogResumeAsync,
+                        "Are you sure that you want to flag this task as in progress?");
+                    break;
+                case OperationType.Complete:
+                    PromptDialog.Confirm(context, OnTaskCompleteDialogResumeAsync,
+                        "Are you sure that you want to flag this task as completed?");
+                    break;
+                case OperationType.Delete:
+                    PromptDialog.Confirm(context, OnDeleteTaskDialogResume,
+                        "Are you sure that you want to delete the task?");
+                    break;
+                case OperationType.ShowOperations:
+                    // Reset the dialog entity.
+                    context.ConversationData.SaveDialogEntity(new BaseEntity(
+                        context.ConversationData.Me(), EntityType.Me));
+                    context.Done(false);
+                    break;
+                case OperationType.StartOver:
+                    // Reset the dialog entity.
+                    context.ConversationData.SaveDialogEntity(new BaseEntity(
+                        context.ConversationData.Me(), EntityType.Me));
+                    context.Done(true);
+                    break;
+            }
         }
 
         #endregion
@@ -426,10 +426,7 @@ namespace MicrosoftGraphBot.Dialog.ResourceTypes
                     }, task.ETag);
                 await context.PostAsync(response ? "Task updated!" : "Update failed!");
 
-                // Navigating up to parent, pop the level and then pop the
-                // last query on the parent.
-                context.NavPopLevel(); 
-                context.NavPopItem();
+                // Show operations.
                 await ShowOperationsAsync(context);
             }
             else
