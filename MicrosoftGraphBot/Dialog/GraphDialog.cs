@@ -35,7 +35,7 @@ namespace MicrosoftGraphBot.Dialog
         {
             //start by having the user select the entity type to query
             await context.Initialize();
-            PromptDialog.Choice(context, this.EntityTypeSelected, Enum.GetNames(typeof(EntityType)), "Where do you want to start exploring?");
+            PromptDialog.Choice(context, this.EntityTypeSelected, Enum.GetNames(typeof(EntityType)).Where(e => e != EntityType.Plan.ToString()), "Where do you want to start exploring?");
         }
 
         /// <summary>
