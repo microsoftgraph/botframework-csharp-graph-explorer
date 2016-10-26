@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MicrosoftGraphBot.Models
 {
@@ -19,6 +15,9 @@ namespace MicrosoftGraphBot.Models
         NavNext,
         NavPrevious,
         NavUp,
-        Cancel
+        Cancel,
+        Plan,
+        Bucket,
+        Task
     }
 }

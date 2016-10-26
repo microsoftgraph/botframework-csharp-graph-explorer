@@ -9,10 +9,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Reflection;
 using System.Resources;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace MicrosoftGraphBot
 {
@@ -73,7 +75,7 @@ namespace MicrosoftGraphBot
         /// </summary>
         /// <param name="context">IDialogContext</param>
         /// <param name="result">LuisResult</param>
-        public async static Task Initialize(this IDialogContext context)
+        public static async Task Initialize(this IDialogContext context)
         {
             //reset the conversation data for new thead
             context.ConversationData.RemoveValue("DialogEntity");
@@ -136,7 +138,7 @@ namespace MicrosoftGraphBot
         {
             return context.ConversationData.Get<string>("NavCurrent");
         }
-        
+
         public static void NavPushLevel(this IDialogContext context)
         {
             //implemented as a list and not a real stack because serialization was corrupting order
@@ -197,7 +199,7 @@ namespace MicrosoftGraphBot
             if (json["@odata.nextLink"] != null)
             {
                 var next = json.Value<string>("@odata.nextLink");
-                operations.Add(new QueryOperation() { Text = "(Next page)", Type = OperationType.Next, Endpoint = next });
+                operations.Add(new QueryOperation() {Text = "(Next page)", Type = OperationType.Next, Endpoint = next});
             }
 
             //add previous to the front
@@ -205,13 +207,24 @@ namespace MicrosoftGraphBot
             {
                 var prev = context.NavPeekItem();
 
-                operations.Add(new QueryOperation() { Text = "(Prev page)", Type = OperationType.Previous, Endpoint = prev });
+                operations.Add(new QueryOperation()
+                {
+                    Text = "(Prev page)",
+                    Type = OperationType.Previous,
+                    Endpoint = prev
+                });
             }
 
             //add parent nav up
             if (!String.IsNullOrEmpty(context.NavPeekLevel()))
-                operations.Add(new QueryOperation() { Text = "(Up to parent)", Type = OperationType.Up, Endpoint = context.NavPeekLevel() });
+                operations.Add(new QueryOperation()
+                {
+                    Text = "(Up to parent)",
+                    Type = OperationType.Up,
+                    Endpoint = context.NavPeekLevel()
+                });
         }
+
         //START - THESE ARE ALL PAGING UTILITIES
 
 
@@ -239,20 +252,113 @@ namespace MicrosoftGraphBot
         }
 
         /// <summary>
-        /// Performs a simple HTTP DELETE against the MSGraph given a token and endpoint
+        /// Performs a HTTP DELETE against the MSGraph given an access token and request URI
         /// </summary>
-        /// <param name="client">HttpClient</param>
-        /// <param name="token">Access token string</param>
-        /// <param name="endpoint">endpoint uri to perform DELETE on</param>
+        /// <param name="httpClient">HttpClient</param>
+        /// <param name="accessToken">Access token string</param>
+        /// <param name="requestUri">Request URI to perform DELETE on</param>
+        /// <param name="weakETag">Entity Tag header for Microsoft Graph item to perform DELETE on</param>
         /// <returns>boolean for success</returns>
-        public static async Task<bool> MSGraphDELETE(this HttpClient client, string token, string endpoint)
+        public static async Task<bool> MSGraphDELETE(this HttpClient httpClient, string accessToken,
+            string requestUri, string weakETag = null)
         {
-            client.DefaultRequestHeaders.Add("Authorization", "Bearer " + token);
-            client.DefaultRequestHeaders.Add("Accept", "application/json");
-            using (var response = await client.DeleteAsync(endpoint))
+            // Set Authorization and Accept header.
+            httpClient.DefaultRequestHeaders.Add("Authorization", "Bearer " + accessToken);
+            httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+
+            // Set (weak) If-Match header.
+            if (weakETag != null)
+            {
+                var headers = httpClient.DefaultRequestHeaders;
+                headers.IfMatch.Add(new EntityTagHeaderValue(weakETag.Substring(2,
+                    weakETag.Length - 2), true));
+            }
+
+            using (var response = await httpClient.DeleteAsync(requestUri))
             {
                 return response.IsSuccessStatusCode;
             }
+        }
+
+        /// <summary>
+        /// Performs a HTTP POST against the MSGraph given an access token and request URI
+        /// </summary>
+        /// <param name="httpClient">HttpClient</param>
+        /// <param name="accessToken">Access token string</param>
+        /// <param name="requestUri">Request uri to perform POST on</param>
+        /// <param name="data">Request body data for the request</param>
+        /// <param name="weakETag">Entity Tag header for Microsoft Graph item to perform POST on</param>
+        /// <returns>boolean for success</returns>
+        public static async Task<bool> MSGraphPOST<T>(this HttpClient httpClient, string accessToken,
+            string requestUri, T data, string weakETag = null) where T : class
+        {
+            // Set Authorization and Accept header.
+            httpClient.DefaultRequestHeaders.Add("Authorization", "Bearer " + accessToken);
+            httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+
+            // Set If-Match header.
+            if (weakETag != null)
+            {
+                var headers = httpClient.DefaultRequestHeaders;
+                headers.IfMatch.Add(new EntityTagHeaderValue(weakETag.Substring(2,
+                    weakETag.Length - 2), true));
+            }
+
+            // Create data.
+            var json = JsonConvert.SerializeObject(data);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            using (var response = await httpClient.PostAsync(requestUri, content))
+            {
+                return response.IsSuccessStatusCode;
+            }
+        }
+
+        /// <summary>
+        /// Performs a HTTP PATCH against the MSGraph given an access token and request URI
+        /// </summary>
+        /// <param name="httpClient">HttpClient</param>
+        /// <param name="accessToken">Access token string</param>
+        /// <param name="requestUri">Request uri to perform PATCH on</param>
+        /// <param name="data">Request body data for the request</param>
+        /// <param name="weakETag">Entity Tag header for Microsoft Graph item to perform PATCH on</param>
+        /// <returns>boolean for success</returns>
+        public static async Task<bool> MSGraphPATCH<T>(this HttpClient httpClient, string accessToken,
+            string requestUri, T data, string weakETag = null) where T : class
+        {
+            // Set Authorization and Accept header.
+            httpClient.DefaultRequestHeaders.Add("Authorization", "Bearer " + accessToken);
+            httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+
+            // Set If-Match header.
+            if (weakETag != null)
+            {
+                var headers = httpClient.DefaultRequestHeaders;
+                headers.IfMatch.Add(new EntityTagHeaderValue(weakETag.Substring(2,
+                    weakETag.Length - 2), true));
+            }
+
+            using (var response = await httpClient.PatchAsJsonAsync(requestUri, data))
+            {
+                return response.IsSuccessStatusCode;
+            }
+        }
+
+        /// <summary>
+        /// Implements the PATCH HTTP Method on the HttpClient.
+        /// </summary>
+        /// <param name="client">HttpClient</param>
+        /// <param name="requestUri">Uri</param>
+        /// <param name="value">T</param>
+        /// <returns>HttpResponseMessage</returns>
+        public static Task<HttpResponseMessage> PatchAsJsonAsync<T>(this HttpClient client,
+            string requestUri, T value) where T : class
+        {
+            var request = new HttpRequestMessage(new HttpMethod("PATCH"), requestUri)
+            {
+                Content = new StringContent(JsonConvert.SerializeObject(value),
+                    Encoding.UTF8, "application/json")
+            };
+            return client.SendAsync(request);
         }
 
 
@@ -415,6 +521,66 @@ namespace MicrosoftGraphBot
             }
 
             return g;
+        }
+
+        /// <summary>
+        /// Parses JArray to generic List of Plan objects
+        /// </summary>
+        /// <param name="array">JArray</param>
+        /// <returns>List of Plan objects</returns>
+        public static List<Plan> ToPlanList(this JArray array)
+        {
+            return array.Select(item => item.ToPlan()).ToList();
+        }
+
+        /// <summary>
+        /// Parses JToken to Plan object
+        /// </summary>
+        /// <param name="token">JToken</param>
+        /// <returns>Plan object</returns>
+        public static Plan ToPlan(this JToken token)
+        {
+            return token.ToObject<Plan>();
+        }
+
+        /// <summary>
+        /// Parses JArray to generic List of Bucket objects
+        /// </summary>
+        /// <param name="array">JArray</param>
+        /// <returns>List of Bucket objects</returns>
+        public static List<Bucket> ToBucketList(this JArray array)
+        {
+            return array.Select(item => item.ToBucket()).ToList();
+        }
+
+        /// <summary>
+        /// Parses JToken to Bucket object
+        /// </summary>
+        /// <param name="token">JToken</param>
+        /// <returns>Bucket object</returns>
+        public static Bucket ToBucket(this JToken token)
+        {
+            return token.ToObject<Bucket>();
+        }
+
+        /// <summary>
+        /// Parses JArray to generic List of Task objects
+        /// </summary>
+        /// <param name="array">JArray</param>
+        /// <returns>List of Task objects</returns>
+        public static List<PlanTask> ToTasksList(this JArray array)
+        {
+            return array.Select(item => item.ToTask()).ToList();
+        }
+
+        /// <summary>
+        /// Parses JToken to Task object
+        /// </summary>
+        /// <param name="token">JToken</param>
+        /// <returns>Task object</returns>
+        public static PlanTask ToTask(this JToken token)
+        {
+            return token.ToObject<PlanTask>();
         }
     }
 }

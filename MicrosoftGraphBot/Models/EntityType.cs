@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MicrosoftGraphBot.Models
 {
@@ -11,6 +7,7 @@ namespace MicrosoftGraphBot.Models
     {
         Me,
         User,
-        Group
+        Group,
+        Plan
     }
 }

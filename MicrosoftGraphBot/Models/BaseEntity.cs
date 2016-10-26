@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MicrosoftGraphBot.Models
 {
@@ -16,11 +12,19 @@ namespace MicrosoftGraphBot.Models
             this.text = user.ToString();
             this.entityType = type;
         }
+
         public BaseEntity(Group group)
         {
             this.id = group.id;
             this.text = group.ToString();
             this.entityType = EntityType.Group;
+        }
+
+        public BaseEntity(Plan plan)
+        {
+            this.id = plan.id;
+            this.text = plan.Title;
+            this.entityType = EntityType.Plan;
         }
 
         public string id { get; set; }

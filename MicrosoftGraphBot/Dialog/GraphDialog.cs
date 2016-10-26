@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using MicrosoftGraphBot.Dialog.ResourceTypes;
 
 namespace MicrosoftGraphBot.Dialog
 {
@@ -34,7 +35,7 @@ namespace MicrosoftGraphBot.Dialog
         {
             //start by having the user select the entity type to query
             await context.Initialize();
-            PromptDialog.Choice(context, this.EntityTypeSelected, Enum.GetNames(typeof(EntityType)), "Where do you want to start exploring?");
+            PromptDialog.Choice(context, this.EntityTypeSelected, Enum.GetNames(typeof(EntityType)).Where(e => e != EntityType.Plan.ToString()), "Where do you want to start exploring?");
         }
 
         /// <summary>
@@ -134,7 +135,11 @@ namespace MicrosoftGraphBot.Dialog
                     case OperationType.People:
                     case OperationType.Photo:
                     case OperationType.Plans:
+                        await opContext.Forward(new PlanLookupDialog(), OnPlanLookupDialogResumeAsync, new Plan(), CancellationToken.None);
+                        break;
                     case OperationType.Tasks:
+                        await opContext.Forward(new TasksDialog(), OperationComplete, true, CancellationToken.None);
+                        break;
                     case OperationType.TrendingAround:
                     case OperationType.WorkingWith:
                         await opContext.PostAsync("Operation not yet implemented");
@@ -143,6 +148,14 @@ namespace MicrosoftGraphBot.Dialog
                 }
 
             }, operations, prompt);
+        }
+
+        private async Task OnPlanLookupDialogResumeAsync(IDialogContext context, IAwaitable<Plan> result)
+        {
+            var plan = await result;
+
+            context.ConversationData.SaveDialogEntity(new BaseEntity(plan));
+            await context.Forward(new TasksDialog(), OperationComplete, true, CancellationToken.None);
         }
 
         /// <summary>
