@@ -1,0 +1,13 @@
+page_type: sample
+products:
+  - ms-graph
+languages:
+  - csharp
+extensions:
+  contentType: tools
+  technologies:
+    - Microsoft Graph
+    - Microsoft Bot Framework
+  createdDate: '7/20/2016 10:34:50 PM'
+title: botframework-csharp-graph-explorer
+description: The Microsoft Graph Bot is a bot built with the Microsoft Bot Framework that allows interactive exploration of Microsoft Graph.
